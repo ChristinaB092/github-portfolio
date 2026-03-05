@@ -1,0 +1,400 @@
+import pygame
+import sys
+import random
+import math
+
+pygame.init()
+
+pygame.mixer.init()
+global power_active
+respawn_time = 3000
+
+BLACK = (0, 0, 0)
+BLUE = (0, 0, 255)
+YELLOW = (255, 255, 0)
+WHITE = (255, 255, 255)
+RED = (255, 0, 0)
+PINK = (255, 192, 203)
+CYAN = (0, 255, 255)
+ORANGE = (255, 165, 0)
+
+# Screen Length/Width
+SCREEN_WIDTH = 600
+SCREEN_HEIGHT = 650
+CELL_SIZE = 40
+
+# Grid Width/Height
+GRID_WIDTH = 15
+GRID_HEIGHT = 15
+
+# game states
+PLAYING = 0
+GAME_OVER = 1
+WIN = 2
+# Global game state
+game_state = PLAYING
+
+# Sound Effects
+chomp = pygame.mixer.Sound("pacman_chomp.wav")
+chomp.set_volume(0.7)
+death = pygame.mixer.Sound("pacman_death.wav")
+death.set_volume(0.7)
+intermission = pygame.mixer.Sound("pacman_intermission.wav")
+intermission.set_volume(0.7)
+eat_cherry = pygame.mixer.Sound("pacman_eatfruit.wav")
+eat_cherry.set_volume(0.7)
+eat_ghost = pygame.mixer.Sound("pacman_eatghost.wav")
+eat_ghost.set_volume(0.7)
+intro = pygame.mixer.Sound("pacman_beginning.wav")
+intro.set_volume(0.7)
+
+# Create the screen
+screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+pygame.display.set_caption("Pac-Man")
+
+# Font for score
+font = pygame.font.Font(None, 36)
+
+# Game grid
+grid = [
+    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+    [1,0,0,0,0,0,0,1,0,0,0,0,0,0,1],
+    [1,0,1,1,0,1,0,1,0,1,0,1,1,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,1,1,0,1,1,1,1,1,0,1,1,0,1],
+    [1,0,0,0,0,0,0,1,0,0,0,0,0,0,1],
+    [1,1,1,1,0,1,0,1,0,1,0,1,1,1,1],
+    [1,1,1,1,0,1,0,0,0,1,0,1,1,1,1],
+    [1,1,1,1,0,1,0,1,0,1,0,1,1,1,1],
+    [1,0,0,0,0,0,0,1,0,0,0,0,0,0,1],
+    [1,0,1,1,0,1,1,1,1,1,0,1,1,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,1,1,0,1,0,1,0,1,0,1,1,0,1],
+    [1,0,0,0,0,0,0,1,0,0,0,0,0,0,1],
+    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+]
+
+grid[1][1] = 3
+grid[1][13] = 3
+grid[13][1] = 3
+grid[13][13] = 3
+
+# Pac_Man
+pacman = {
+    'x': 1,
+    'y': 1,
+    'direction': 3,  # 0: right, 1: down, 2: left, 3: up
+    'mouth_open': False
+}
+def draw_cherry(x, y):
+    screen_x = x * CELL_SIZE + CELL_SIZE // 2
+    screen_y = y * CELL_SIZE + CELL_SIZE // 2 + 50
+    pygame.draw.circle(screen, RED, (screen_x, screen_y), CELL_SIZE // 4)
+
+def reset_cherry():
+    while True:
+        x = random.randint(0, GRID_WIDTH - 1)
+        y = random.randint(0, GRID_HEIGHT - 1)
+        if grid[y][x] != 1:  # not a wall
+            return x, y
+cherry_x, cherry_y = reset_cherry()
+# Ghosts
+ghosts = [
+    {'x': 1, 'y': 13, 'color': RED, 'alive': True},
+    {'x': 13, 'y': 1, 'color': PINK, 'alive': True},
+    {'x': 13, 'y': 13, 'color': CYAN, 'alive': True},
+    {'x': 11, 'y': 11, 'color': ORANGE, 'alive': True}
+]
+# Score
+score = 0
+power_active = False
+power_duration = 6000  # 6 seconds
+power_start_time = 0
+
+
+# Game loop
+clock = pygame.time.Clock()
+running = True
+
+# Movement delays
+pacman_move_delay = 150  # milliseconds
+ghost_move_delay = 300
+mouth_anim_delay = 600
+# timing variables
+last_pacman_move_time = 0
+last_ghost_move_time = 0
+last_mouth_anim_time = 0
+
+
+def move_pacman():
+    global score
+
+    dx, dy = [(1,0),(0,1),(-1,0),(0,-1)][pacman['direction']]
+    new_x = pacman['x'] + dx
+    new_y = pacman['y'] + dy
+
+    # Make sure new position is inside grid
+    if 0 <= new_x < GRID_WIDTH and 0 <= new_y < GRID_HEIGHT:
+        # Check wall correctly (grid[y][x])
+        if grid[new_y][new_x] != 1:
+            pacman['x'] = new_x
+            pacman['y'] = new_y
+
+            # Eat dot
+            if grid[new_y][new_x] == 0:
+                grid[new_y][new_x] = 2
+                score += 10
+                chomp.play()
+            elif grid[y][x] == 3:
+                pygame.draw.circle(
+                    screen,
+                    WHITE,
+                    (x * CELL_SIZE + CELL_SIZE // 2,
+                     y * CELL_SIZE + CELL_SIZE // 2 + 50),
+                    10
+                )
+            elif grid[new_y][new_x] == 3:
+                grid[new_y][new_x] = 2
+                score += 50
+                eat_cherry.play()
+                global power_active, power_start_time
+                power_active = True
+                power_start_time = pygame.time.get_ticks()
+
+def move_ghost(ghost):
+    directions = [(1, 0), (0, 1), (-1, 0), (0, -1)]
+    random.shuffle(directions)
+    for dx, dy in directions:
+        new_x, new_y = ghost['x'] + dx, ghost['y'] + dy
+        if 0 <= new_x < GRID_WIDTH and 0 <= new_y < GRID_HEIGHT and grid[new_y][new_x] != 1:
+            ghost['x'], ghost['y'] = new_x, new_y
+            break
+
+
+def draw_pacman():
+    x = pacman['x'] * CELL_SIZE + CELL_SIZE // 2
+    y = pacman['y'] * CELL_SIZE + CELL_SIZE // 2 + 50
+
+    # Mouth Opening
+    mouth_opening = 45 if pacman['mouth_open'] else 0
+
+    # Draw Pac-Man as a circle
+    pygame.draw.circle(screen, YELLOW, (x, y), CELL_SIZE // 2)
+
+    # Calculate the angles for the mouth based on direction
+    if pacman['direction'] == 0:  # Right
+        start_angle = 360 - mouth_opening / 2
+        end_angle = mouth_opening / 2
+    elif pacman['direction'] == 3:  # Down
+        start_angle = 90 - mouth_opening / 2
+        end_angle = 90 + mouth_opening / 2
+    elif pacman['direction'] == 2:  # Left
+        start_angle = 180 - mouth_opening / 2
+        end_angle = 180 + mouth_opening / 2
+    else:  # Up
+        start_angle = 270 - mouth_opening / 2
+        end_angle = 270 + mouth_opening / 2
+
+    # Draw the mouth using a pie shape (filled arc)
+    pygame.draw.arc(screen, BLACK,
+                    (x - CELL_SIZE // 2, y - CELL_SIZE // 2, CELL_SIZE, CELL_SIZE),
+                    math.radians(start_angle), math.radians(end_angle), CELL_SIZE // 2)
+    # Draw a line from the center to create the "slice" effect
+    mouth_line_end_x = x + math.cos(math.radians(start_angle)) * CELL_SIZE // 2
+    mouth_line_end_y = y - math.sin(math.radians(start_angle)) * CELL_SIZE // 2
+    pygame.draw.line(screen, BLACK, (x, y), (mouth_line_end_x, mouth_line_end_y), 2)
+
+    mouth_line_end_x = x + math.cos(math.radians(end_angle)) * CELL_SIZE // 2
+    mouth_line_end_y = y - math.sin(math.radians(end_angle)) * CELL_SIZE // 2
+    pygame.draw.line(screen, BLACK, (x, y), (mouth_line_end_x, mouth_line_end_y), 2)
+
+
+def draw_ghost(ghost):
+    global power_active
+
+    if not ghost['alive']:
+        return
+
+    x = ghost['x'] * CELL_SIZE + CELL_SIZE // 2
+    y = ghost['y'] * CELL_SIZE + CELL_SIZE // 2 + 50
+
+    if power_active:
+        pygame.draw.circle(screen, BLUE, (x, y), CELL_SIZE // 2)
+    else:
+        pygame.draw.circle(screen, ghost['color'], (x, y), CELL_SIZE // 2)
+
+def draw_win_screen():
+    screen.fill(BLACK)
+    win_font = pygame.font.Font(None, 64)
+    score_font = pygame.font.Font(None, 48)
+    restart_font = pygame.font.Font(None, 36)
+
+    win_text = win_font.render("YOU WIN!", True, YELLOW)
+    score_text = score_font.render(f"Final Score: {score}", True, WHITE)
+    restart_text = restart_font.render("Press SPACE to restart", True, YELLOW)
+
+    screen.blit(win_text, (SCREEN_WIDTH // 2 - win_text.get_width() // 2, SCREEN_HEIGHT // 3))
+    screen.blit(score_text, (SCREEN_WIDTH // 2 - score_text.get_width() // 2, SCREEN_HEIGHT // 2))
+    screen.blit(restart_text, (SCREEN_WIDTH // 2 - restart_text.get_width() // 2, 2 * SCREEN_HEIGHT // 3))
+
+def reset_game():
+    global pacman, ghosts, score, grid, game_state
+    pacman = {
+        'x': 1,
+        'y': 1,
+        'direction': 3,
+        'mouth_open': False
+    }
+    ghosts = [
+        {'x': 1, 'y': 13, 'color': RED},
+        {'x': 13, 'y': 1, 'color': PINK},
+        {'x': 13, 'y': 13, 'color': CYAN},
+        {'x': 11, 'y': 11, 'color': ORANGE}
+    ]
+    reset_cherry()
+    # Score
+    score = 0
+
+
+# Game grid
+    grid = [
+        [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+        [1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1],
+        [1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 1, 0, 1],
+        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+        [1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 1, 0, 1],
+        [1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1],
+        [1, 1, 1, 1, 0, 0, 1, 0, 0, 0, 1, 0, 1, 1, 1, 1],
+        [1, 1, 1, 1, 0, 0, 1, 0, 1, 0, 1, 0, 1, 1, 1, 1],
+        [1, 1, 1, 1, 0, 0, 1, 0, 1, 0, 1, 0, 1, 1, 1, 1],
+        [1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1],
+        [1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 1, 0, 1],
+        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+        [1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 1, 0, 1],
+        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+        [1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 1, 0, 1],
+        [1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1],
+        [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+    ]
+    game_state = PLAYING
+
+
+def draw_game_over():
+    screen.fill(BLACK)
+    game_over_font = pygame.font.Font(None, 64)
+    score_font = pygame.font.Font(None, 48)
+    restart_font = pygame.font.Font(None, 36)
+
+    game_over_text = game_over_font.render("Game Over", True, RED)
+    score_text = score_font.render(f"Score: {score}", True, WHITE)
+    restart_text = restart_font.render("Press SPACE to restart", True, YELLOW)
+
+    screen.blit(game_over_text, (SCREEN_WIDTH // 2 - game_over_text.get_width() // 2, SCREEN_HEIGHT // 3))
+    screen.blit(score_text, (SCREEN_WIDTH // 2 - game_over_text.get_width() // 2, SCREEN_HEIGHT // 2))
+    screen.blit(restart_text, (SCREEN_WIDTH // 2 - game_over_text.get_width() // 2, 2 * SCREEN_HEIGHT // 3))
+
+def check_win():
+    for row in grid:
+        if 0 in row:   # still normal dots left
+            return False
+    return True
+
+# Main game loop
+running = True
+clock = pygame.time.Clock()
+
+while running:
+    current_time = pygame.time.get_ticks()
+
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            running = False
+        elif event.type == pygame.KEYDOWN:
+            if game_state == PLAYING:
+                if event.key == pygame.K_UP:
+                    pacman['direction'] = 3
+                elif event.key == pygame.K_DOWN:
+                    pacman['direction'] = 1
+                elif event.key == pygame.K_LEFT:
+                    pacman['direction'] = 2
+                elif event.key == pygame.K_RIGHT:
+                    pacman['direction'] = 0
+            elif game_state == GAME_OVER:
+                if event.key == pygame.K_SPACE:
+                    reset_game()
+    if game_state == PLAYING:
+        if power_active:
+            if pygame.time.get_ticks() - power_start_time > power_duration:
+                power_active = False
+        # Move Pac-Man only if enough time has passed
+        if current_time - last_pacman_move_time > pacman_move_delay:
+            move_pacman()
+            last_pacman_move_time = current_time
+        if check_win():
+            intermission.play()
+            game_state = WIN
+        # Move Ghosts only if enough time has passed
+        if current_time - last_ghost_move_time > ghost_move_delay:
+            for ghost in ghosts:
+                move_ghost(ghost)
+            last_ghost_move_time = current_time
+        if pacman['x'] == cherry_x and pacman['y'] == cherry_y:
+            score += 50
+            cherry_x, cherry_y = reset_cherry()
+        # Animate Pac-Man's mouth
+        if current_time - last_mouth_anim_time > mouth_anim_delay:
+            pacman['mouth_open'] = not pacman['mouth_open']
+            last_mouth_anim_time = current_time
+
+        # clear the screen
+        screen.fill(BLACK)
+        # Draw the maze and dots
+        for y in range(GRID_HEIGHT):
+            for x in range(GRID_WIDTH):
+                if grid[y][x] == 1:
+                    pygame.draw.rect(screen, BLUE, (x * CELL_SIZE, y * CELL_SIZE + 50, CELL_SIZE, CELL_SIZE))
+                elif grid[y][x] == 0:
+                    pygame.draw.circle(screen, YELLOW,
+                                       (x * CELL_SIZE + CELL_SIZE // 2, y * CELL_SIZE + CELL_SIZE // 2 + 50), 3)
+                elif grid[y][x] == 3:
+                    pygame.draw.circle(screen, WHITE,
+                                       (x * CELL_SIZE + CELL_SIZE // 2, y * CELL_SIZE + CELL_SIZE // 2 + 50), 8)
+        draw_cherry(cherry_x, cherry_y)
+        draw_pacman()
+
+
+        for ghost in ghosts:
+            draw_ghost(ghost)
+        # displaying the score
+        score_text = font.render(f"score:{score}", True, WHITE)
+        screen.blit(score_text, (10, 10))
+
+        # Check for collision with ghosts
+        for ghost in ghosts:
+            if not ghost['alive']:
+                if pygame.time.get_ticks() - ghost['dead_time'] > respawn_time:
+                    ghost['x'], ghost['y'] = 7, 7
+                    ghost['alive'] = True
+
+            if pacman['x'] == ghost['x'] and pacman['y'] == ghost['y']:
+                if power_active and ghost['alive']:
+                    eat_ghost.play()
+                    score += 200
+                    ghost['alive'] = False
+                    ghost['dead_time'] = pygame.time.get_ticks()
+                elif ghost['alive']:
+                    death.play()
+                    game_state = GAME_OVER
+                    draw_game_over()
+    elif game_state == WIN:
+        draw_win_screen()
+    # update the display
+    pygame.display.flip()
+
+    # cap the frame rate
+    clock.tick(60)
+pygame.quit()
+sys.exit()
+
+
+

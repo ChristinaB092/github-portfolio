@@ -1,0 +1,126 @@
+import turtle as tl
+
+class PONG:
+    def __init__(self, name):
+        self.create_window()
+        self.left_paddle()
+        self.right_paddle()
+        self.create_ball()
+        self.score()
+        self.keys()
+        self.game()
+
+    def create_window(self):
+        self.root = tl.Screen()
+        self.root.title("PONG")
+        self.root.bgcolor("black")
+        self.root.setup(width=600, height=400)
+        self.root.tracer(0)
+
+    def score(self):
+        self.left_score = 0
+        self.right_score = 0
+
+        self.pen = tl.Turtle()
+        self.pen.speed(0)
+        self.pen.color("white")
+        self.pen.penup()
+        self.pen.hideturtle()
+        self.pen.goto(0,160)
+        self.pen.goto(0,160)
+        self.pen.write("0:0", align="center", font=("Courier", 24, "normal"))
+
+    def update_score(self):
+        self.pen.clear()
+        self.pen.write(f"{self.left_score} : {self.right_score}", align="center", font=("Courier", 24, "normal"))
+
+    def left_paddle(self):
+        self.left_paddle = tl.Turtle()
+        self.left_paddle.speed(0)
+        self.left_paddle.shape("square")
+        self.left_paddle.color("pink")
+        self.left_paddle.shapesize(stretch_wid=7, stretch_len=1.2)
+        self.left_paddle.penup()
+        self.left_paddle.goto(-280, 0)
+
+    def right_paddle(self):
+        self.right_paddle = tl.Turtle()
+        self.right_paddle.speed(0)
+        self.right_paddle.shape("square")
+        self.right_paddle.color("blue")
+        self.right_paddle.shapesize(stretch_wid=7, stretch_len=1.2)
+        self.right_paddle.penup()
+        self.right_paddle.goto(280, 0)
+
+    def create_ball(self):
+        self.ball = tl.Turtle()
+        self.ball.speed(0)
+        self.ball.shape("circle")
+        self.ball.color("white")
+        self.ball.penup()
+        self.ball.goto(5, 5)
+        self.ball.dx = 0.2
+        self.ball.dy = 0.2
+
+    def left_paddle_up(self):
+        y = self.left_paddle.ycor()
+        y += 20
+        self.left_paddle.sety(y)
+
+    def left_paddle_down(self):
+        y = self.left_paddle.ycor()
+        y -= 20
+        self.left_paddle.sety(y)
+
+    def right_paddle_up(self):
+        y = self.right_paddle.ycor()
+        y += 20
+        self.right_paddle.sety(y)
+
+    def right_paddle_down(self):
+        y = self.right_paddle.ycor()
+        y -= 20
+        self.right_paddle.sety(y)
+
+    def keys(self):
+        self.root.listen()
+        self.root.onkeypress(self.left_paddle_up, "w")
+        self.root.onkeypress(self.left_paddle_down, "s")
+        self.root.onkeypress(self.right_paddle_up, "Up")
+        self.root.onkeypress(self.right_paddle_down, "Down")
+
+    def game(self):
+        while True:
+            self.root.update()
+            self.ball.setx(self.ball.xcor() + self.ball.dx)
+            self.ball.sety(self.ball.ycor() + self.ball.dy)
+
+            if self.ball.ycor() > 190:
+                self.ball.sety(190)
+                self.ball.dy *= -1
+            if self.ball.ycor() < -190:
+                self.ball.sety(-190)
+                self.ball.dy *= -1
+            if self.ball.xcor() > 260:
+                self.ball.goto(0, 0)
+                self.ball.dx *= -1
+            if self.ball.xcor() < -260:
+                self.ball.goto(0, 0)
+                self.ball.dx *= -1
+
+            if self.ball.distance(self.right_paddle) < 50 and self.ball.xcor() > 250:
+                self.ball.setx(250)
+                self.ball.dx *= -1
+                self.right_score += 1
+                self.update_score()
+
+            if self.ball.distance(self.left_paddle) < 50 and self.ball.xcor() < -250:
+                self.ball.setx(-250)
+                self.ball.dx *= -1
+                self.left_score += 1
+                self.update_score()
+
+def main():
+    PONG("PONG")
+if __name__ == '__main__':
+  main()
